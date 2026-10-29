@@ -49,7 +49,44 @@ Work is planned spec-first with OpenSpec (`@fission-ai/openspec`, pinned as a de
 - `index.ts` calls `registerRootComponent(App)`. It's the JS entry point (`main` in `package.json`), and `App.tsx` is the root component.
 - **Continuous Native Generation:** `android/` and `ios/` are gitignored build output. `expo prebuild` generates them from `app.config.ts`, which holds the app name, `android.package`, `ios.bundleIdentifier`, icons and splash, plus the native module config of installed Expo packages. Never edit the native folders by hand. Express native changes in `app.config.ts` or as a config plugin. In WellForge, plugins live in `apps/mobile/plugins/withXxx.ts` and native code in local Expo modules under `apps/mobile/modules/`.
 - No Expo Go workflow: the app runs as a local debug build (`expo run:*`). That build is required as soon as a library with native code is added.
-- Tests live in `__tests__/` and use `@testing-library/react-native`.
-- WellForge pins its lint/test tooling to the same majors (Jest 29, ESLint 9, `@testing-library/react-native` 13). Use `expo install` rather than `pnpm add` for Expo-related packages, or you'll get versions for a newer SDK.
+- The app is a React Native copy of the SwiftUI app BBQuates17 (`/Users/olhapelypets/AppProjects/BBQuates17`). The OpenSpec change `rn-copy-of-bbquates17` defines its behavior and design.
+
+### Layers
+
+The layout follows WellForge `apps/mobile`. **When a technology or pattern choice isn't settled here, do what WellForge does**, and say so when reporting the change.
+
+- `src/app/`: the app shell. `di/diConfigurator.ts` lists every `*Assembly` and sets the `ServiceLocator`; root navigation lives next to it.
+- `src/features/<feature>/`: vertical feature modules. Each has an `assembly/`, `gateway/` (network access), `store/` (screen state, the ViewModel equivalent), `models/`, and `screens/`.
+- `src/libs/`: shared code with no feature knowledge.
+  - `di`: `createServiceKey<T>()`, `DIContainer` (container-scoped singletons by default, or transient), `Assembly`, `useService(Key)`.
+  - `utils/listener`: `Publisher`, `CurrentValueSubject` (≈ StateFlow), `PassthroughSubject`, and the hooks `usePublisher` / `useSubjectValue`.
+  - `networking`: `ApiClient` is the only caller of `fetch`; a non-2xx status becomes `HttpFetchError`.
+  - `logger`: `Logger` via `LoggerKey`. Don't leave `console.log` in code.
+  - `ui/theme`: `useTheme()` / `useThemedStyles(createStyles)` with `StyleSheet.create`, a single dark theme.
+- Every service is declared as an interface plus a `*Imp` class, with its key next to the interface. Components resolve services with `useService`, and services take their dependencies through the constructor.
+- State lives in Publisher/Subject stores, not in zustand, Redux or react-query (all three are forbidden in WellForge). The network goes only through `ApiClient`, never axios.
+- Imports use `#/app/*`, `#/features/*` and `#/libs/*`, which are defined in both `tsconfig.json` `paths` and `package.json` `imports`. Don't import across features with deep relative paths. Use named exports, and kebab-case folder names.
+- Tests live in a `__tests__/` folder next to the code and use `@testing-library/react-native`. Gateways are tested against a mocked `ApiClient`, stores against a mocked gateway. No test touches the network.
+
+### Dependencies
+
+- Use `pnpm exec expo install <pkg>` for anything Expo or React Native.
+- `expo install` pins only the packages in the SDK's native-module list. `babel-preset-expo`, `jest-expo` and `eslint-config-expo` are not on it, so it installs their latest major, a newer SDK's. Match them to SDK 55 by hand: `babel-preset-expo` uses the range `expo`'s own `package.json` declares, and `pnpm dlx expo-doctor` flags a mismatch.
+- `expo install` doesn't pin React Navigation either. Keep `@react-navigation/*` at WellForge's exact versions (`bottom-tabs` 7.15.9, `native` 7.2.2, `native-stack` 7.14.10). `bottom-tabs` 7.21 with `react-native-screens` 4.23 crashes the native tabs on Android with `[RNScreens] No focused tab present`.
+- After changing anything in `node_modules`, restart Metro with `pnpm exec expo start --clear`. A running Metro can keep serving the old bundle.
+- Don't start Metro with `CI=1`. In CI mode it doesn't watch files, so edits never reach the app.
+
+### Comparing with the original
+
+Visual changes are checked against the SwiftUI original on the same simulator. Its working tree has an uncommitted, uninstallable `CuxAnalyticsSDK` pod, so build its committed `HEAD` from an export:
+
+```bash
+git -C /Users/olhapelypets/AppProjects/BBQuates17 archive HEAD | tar -x -C <tmp>/src
+xcodebuild -project <tmp>/src/BBQuates17.xcodeproj -scheme BBQuates17 -destination 'id=<simulator-udid>' -derivedDataPath <tmp>/dd CODE_SIGNING_ALLOWED=NO build
+xcrun simctl install <simulator-udid> <tmp>/dd/Build/Products/Debug-iphonesimulator/BBQuates17.app
+```
+
+The original's bundle id is `com.opelypets.BBQuates17` and the copy's is `com.bbq.reacttest`, so both install side by side. Layout code that emulates SwiftUI stacks (Spacer splitting, wrapped-text button widths) explains itself in comments in `src/features/quotes/screens/fetch/`.
+- WellForge pins its lint/test tooling to the same majors (Jest 29, ESLint 9, `@testing-library/react-native` 13).
 
 The `.claude/settings.json` from the Expo template enables the official `expo` Claude Code plugin.
