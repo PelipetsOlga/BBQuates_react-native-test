@@ -36,6 +36,14 @@ pnpm dlx expo-doctor            # check dependency versions and config against t
 
 Run `typecheck`, `lint` and `test` before calling a task done.
 
+## OpenSpec
+
+Work is planned spec-first with OpenSpec (`@fission-ai/openspec`, pinned as a devDependency). Specs live in `openspec/specs/`, and in-flight changes in `openspec/changes/<id>/` (proposal, design, tasks, delta specs). Project context for the artifacts is in `openspec/config.yaml`.
+
+- Flow: `/opsx:explore` → `/opsx:propose "<idea>"` → `/opsx:apply` → `/opsx:archive`. The skills behind these commands are `.claude/skills/openspec-*`.
+- Run the CLI as `pnpm exec openspec …`, e.g. `pnpm exec openspec list`, `pnpm exec openspec validate --all`. The skills call bare `openspec`, which on this machine resolves to an older global 1.13.1 under nvm Node 20. Use `pnpm exec` so the CLI matches the version that generated the skills.
+- After bumping the package, run `pnpm exec openspec update` to regenerate the skills and commands.
+
 ## Architecture
 
 - `index.ts` calls `registerRootComponent(App)`. It's the JS entry point (`main` in `package.json`), and `App.tsx` is the root component.

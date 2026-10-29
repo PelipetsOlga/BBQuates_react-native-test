@@ -3,3 +3,4 @@
 allowBuilds:
   '@parcel/watcher': true
   'unrs-resolver': true
+  '@fission-ai/openspec': true
